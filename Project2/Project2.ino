@@ -1,83 +1,120 @@
-/* replace ? and add code in ???*/
 #include <Arduino.h>
 #include <DHT.h>
 #include "NewPing.h"
 #include <ESP32Servo.h>
+#include "pitches.h"
 
-// define DHT11 sensor pin
-#define DHT_PIN   ?
-
+// ----------- Define Pins -----------
+#define DHT_PIN   35
 #define DHT_TYPE DHT11
 DHT dht11(DHT_PIN, DHT_TYPE);
 
-// Maximum distance we want to ping for (in centimeters).
+// Ultrasonic
+#define TRIG_PIN 4
+#define ECHO_PIN 5
 #define MAX_DISTANCE 400
+NewPing sonar(TRIG_PIN, ECHO_PIN, MAX_DISTANCE);
 
-// NewPing setup of pins and maximum distance.
-NewPing sonar(TRIG_PIN, ECHO_PIN, MAX_DISTANCE); 
-
-//define pins
-#define LED_PIN ?
-#define DHT_PIN   ?
-#define TRIG_PIN ?        
-#define ECHO_PIN  ?       
-#define BUZZER_PIN ?     
-#define Servo_PIN ? 
-
-
+// Other devices
+#define LED_PIN 1
+#define BUZZER_PIN 15
+#define SERVO_PIN 7
+Servo servo;
 
 void setup() {
-  // Initialize Serial Monitor 
-  Serial.begin(?);    
+  // Initialize Serial Monitor
+  Serial.begin(115200);
+
   // initialize the DHT11 sensor
   dht11.begin();
-  //attach servo pin
-  servo.attach(?);
-  // config the pin mode of each pin
-  ???
-  //
+
+  // attach servo pin
+  servo.attach(SERVO_PIN);
+
+  // config pin modes
+  pinMode(LED_PIN, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+
+  digitalWrite(LED_PIN, LOW);
+  digitalWrite(BUZZER_PIN, LOW);
 }
 
 void loop() {
 
-  // read humidity
+  // read humidity & temperature
   float humi  = dht11.readHumidity();
-  // read temperature in Celsius
   float tempC = dht11.readTemperature();
-  // read temperature in Fahrenheit
-  float tempF = dht11.readTemperature(true);
 
-  // check whether the reading is successful or not
-  if ( isnan(tempC) || isnan(tempF) || isnan(humi)) {
+  // read distance from ultrasonic
+  int distance = sonar.ping_cm();
+
+  // check whether the reading is successful
+  if (isnan(tempC) || isnan(humi)) {
     Serial.println("Failed to read from DHT11 sensor!");
-  } else if (temp <= 30) {
-      
-        // servo motor stop 
-        ???
-       // Serial Monitor show Safe
-        ???
-       // buzzer no sound
-        ???
-  } else if (humi >= 30) {
-       // servo motor stop 
-        ???
-       // Serial Monitor show Caution
-        ???
-       // buzzer continuously alarm
-        ??? 
-       // report heat source distance from Ultrasonic sensor
-        ???
-    } 
-    else if (humi < 30)  {
-      // servo motor run
-        ???
-       // Serial Monitor show Dangerous
-        ???
-       // buzzer beep
-        ???
+    return;
   }
-  
 
-  // wait a 2 seconds between readings
+  // -------- SAFE CONDITION --------
+  if (tempC <= 30) {
+
+    // servo motor stop
+    servo.write(90);
+    //tone(BUZZER_PIN, NOTE_G5, 500);
+    // Serial Monitor show Safe
+    Serial.println("SAFE");
+    Serial.println(tempC);
+    Serial.println(humi);
+    // buzzer no sound
+    noTone(BUZZER_PIN);
+
+    digitalWrite(LED_PIN, LOW);
+  }
+
+  // -------- CAUTION CONDITION --------
+  else if (humi >= 30) {
+
+    // servo motor stop
+    servo.write(90);
+
+    // Serial Monitor show Caution
+    Serial.println("CAUTION");
+    Serial.println(tempC);
+    Serial.println(humi);
+
+    // buzzer continuously alarm
+    tone(BUZZER_PIN,NOTE_G5, 1000);
+    delay(1000);
+    noTone(BUZZER_PIN);
+    // report heat source distance
+    Serial.print("Distance: ");
+    Serial.print(distance);
+    Serial.println(" cm");
+
+    digitalWrite(LED_PIN, HIGH);
+  }
+
+  // -------- DANGEROUS CONDITION --------
+  else if (humi < 30) {
+
+    // servo motor run
+    servo.write(0);
+    delay(500);
+    servo.write(180);
+    delay(500);
+
+    // Serial Monitor show Dangerous
+    Serial.println("DANGEROUS");
+    Serial.println(tempC);
+    Serial.println(humi);
+    // buzzer beep
+    tone(BUZZER_PIN,NOTE_E5, 1000);
+    delay(1000);
+    noTone(BUZZER_PIN);
+    digitalWrite(LED_PIN, HIGH);
+  }
+
+  // wait 2 seconds between readings
   delay(2000);
 }
