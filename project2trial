@@ -1,0 +1,117 @@
+#include <Arduino.h>
+#include <DHT.h>
+#include "NewPing.h"
+#include <ESP32Servo.h>
+
+// ----------- Define Pins -----------
+#define DHT_PIN   335
+#define DHT_TYPE DHT11
+DHT dht11(DHT_PIN, DHT_TYPE);
+
+// Ultrasonic
+#define TRIG_PIN 4
+#define ECHO_PIN 5
+#define MAX_DISTANCE 400
+NewPing sonar(TRIG_PIN, ECHO_PIN, MAX_DISTANCE);
+
+// Other devices
+#define LED_PIN 2
+#define BUZZER_PIN 15
+#define SERVO_PIN 13
+
+Servo servo;
+
+void setup() {
+  // Initialize Serial Monitor
+  Serial.begin(115200);
+
+  // initialize the DHT11 sensor
+  dht11.begin();
+
+  // attach servo pin
+  servo.attach(SERVO_PIN);
+
+  // config pin modes
+  pinMode(LED_PIN, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+
+  digitalWrite(LED_PIN, LOW);
+  digitalWrite(BUZZER_PIN, LOW);
+}
+
+void loop() {
+
+  // read humidity & temperature
+  float humi  = dht11.readHumidity();
+  float tempC = dht11.readTemperature();
+
+  // read distance from ultrasonic
+  int distance = sonar.ping_cm();
+
+  // check whether the reading is successful
+  if (isnan(tempC) || isnan(humi)) {
+    Serial.println("Failed to read from DHT11 sensor!");
+    return;
+  }
+
+  // -------- SAFE CONDITION --------
+  if (tempC <= 30) {
+
+    // servo motor stop
+    servo.write(90);
+
+    // Serial Monitor show Safe
+    Serial.println("SAFE");
+
+    // buzzer no sound
+    digitalWrite(BUZZER_PIN, LOW);
+
+    digitalWrite(LED_PIN, LOW);
+  }
+
+  // -------- CAUTION CONDITION --------
+  else if (humi >= 30) {
+
+    // servo motor stop
+    servo.write(90);
+
+    // Serial Monitor show Caution
+    Serial.println("CAUTION");
+
+    // buzzer continuously alarm
+    digitalWrite(BUZZER_PIN, HIGH);
+
+    // report heat source distance
+    Serial.print("Distance: ");
+    Serial.print(distance);
+    Serial.println(" cm");
+
+    digitalWrite(LED_PIN, HIGH);
+  }
+
+  // -------- DANGEROUS CONDITION --------
+  else if (humi < 30) {
+
+    // servo motor run
+    servo.write(0);
+    delay(500);
+    servo.write(180);
+    delay(500);
+
+    // Serial Monitor show Dangerous
+    Serial.println("DANGEROUS");
+
+    // buzzer beep
+    digitalWrite(BUZZER_PIN, HIGH);
+    delay(200);
+    digitalWrite(BUZZER_PIN, LOW);
+    delay(200);
+
+    digitalWrite(LED_PIN, HIGH);
+  }
+
+  // wait 2 seconds between readings
+  delay(2000);
+}
